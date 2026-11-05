@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catch the Zoomies — a Squeekchain timing game</title>
+<meta name="description" content="A timing game powered by Squeekchain. Watch Squeektoshi's live wheel speed and press CATCH when the RPM lands inside the target zone.">
+<style>
+  :root { --bg:#171208; --panel:#221a0c; --amber:#f5a623; --gold:#ffd166; --green:#7bd88a; --red:#ff6b6b; --ink:#fff7e6; --muted:#c9b48a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; min-height:100vh; display:flex; justify-content:center; padding:24px 12px 48px; }
+  .wrap { width:100%; max-width:640px; }
+  header { text-align:center; margin-bottom:16px; }
+  h1 { font-size:2rem; line-height:1.15; }
+  h1 span { color:var(--gold); }
+  .sub { color:var(--muted); margin-top:6px; font-size:.95rem; }
+  .pill { display:inline-block; margin-top:10px; padding:5px 12px; border-radius:999px; background:#2e2410; border:1px solid #4a3a18; font-size:.85rem; }
+  .pill .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--green); margin-right:6px; }
+  .pill.sleep .dot { background:var(--red); }
+  .card { background:var(--panel); border:1px solid #3a2d15; border-radius:16px; padding:18px; margin-top:14px; }
+  .wheel-row { display:flex; gap:16px; align-items:center; }
+  .wheel { width:120px; height:120px; border-radius:50%; border:6px solid var(--amber); position:relative; flex-shrink:0; background:radial-gradient(circle at 50% 50%, #3a2a10 0%, #221a0c 70%); }
+  .wheel .spoke { position:absolute; left:50%; top:50%; width:4px; height:52px; background:var(--amber); transform-origin:top center; border-radius:2px; }
+  .wheel .spoke.s1 { transform:translate(-50%,0) rotate(0deg); }
+  .wheel .spoke.s2 { transform:translate(-50%,0) rotate(90deg); }
+  .wheel .spoke.s3 { transform:translate(-50%,0) rotate(180deg); }
+  .wheel .spoke.s4 { transform:translate(-50%,0) rotate(270deg); }
+  .wheel .hub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:2rem; }
+  .wheel.spinning { animation:spin 2s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .readout { flex:1; }
+  .rpm { font-size:2.4rem; font-weight:800; line-height:1; }
+  .rpm small { font-size:.9rem; color:var(--muted); font-weight:400; }
+  .status-line { color:var(--muted); margin-top:6px; font-size:.9rem; }
+  .gauge { position:relative; height:26px; background:#100c05; border:1px solid #3a2d15; border-radius:8px; margin-top:16px; overflow:hidden; }
+  .zone { position:absolute; top:0; bottom:0; background:rgba(123,216,138,.35); border-left:2px solid var(--green); border-right:2px solid var(--green); }
+  .needle { position:absolute; top:-2px; bottom:-2px; width:4px; background:var(--gold); border-radius:2px; transform:translateX(-50%); transition:left .3s ease; }
+  .gauge-labels { display:flex; justify-content:space-between; color:var(--muted); font-size:.75rem; margin-top:4px; }
+  .target { margin-top:12px; font-size:1.05rem; }
+  .target b { color:var(--green); }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px; }
+  .stat { background:#100c05; border:1px solid #3a2d15; border-radius:10px; padding:10px 6px; text-align:center; }
+  .stat .v { font-size:1.3rem; font-weight:700; }
+  .stat .k { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .catch-btn { display:block; width:100%; margin-top:16px; padding:18px; font-size:1.4rem; font-weight:800; letter-spacing:.04em; color:#241a05; background:linear-gradient(180deg,var(--gold),var(--amber)); border:none; border-radius:14px; cursor:pointer; }
+  .catch-btn:active { transform:scale(.98); }
+  .catch-btn:disabled { opacity:.45; cursor:default; }
+  .msg { text-align:center; min-height:1.5em; margin-top:12px; font-size:1.05rem; }
+  .msg.good { color:var(--green); }
+  .msg.bad { color:var(--red); }
+  .round-bar { height:8px; background:#100c05; border-radius:4px; overflow:hidden; margin-top:12px; }
+  .round-fill { height:100%; background:var(--amber); width:100%; transition:width 1s linear; }
+  h2 { font-size:1.05rem; margin-bottom:8px; }
+  ol { margin-left:18px; color:var(--muted); line-height:1.6; font-size:.95rem; }
+  .board { list-style:none; }
+  .board li { display:flex; justify-content:space-between; padding:7px 2px; border-bottom:1px solid #2e2410; font-size:.95rem; }
+  .board li:last-child { border-bottom:none; }
+  footer { text-align:center; color:var(--muted); font-size:.8rem; margin-top:18px; line-height:1.6; }
+  footer a { color:var(--gold); }
+  .demo { display:none; margin-top:10px; padding:8px 10px; border:1px dashed var(--amber); border-radius:8px; color:var(--gold); font-size:.85rem; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🐹 Catch the <span>Zoomies</span></h1>
+    <p class="sub">A timing game powered by Squeekchain. Squeektoshi runs his wheel live — press CATCH when his speed lands inside the target zone.</p>
+    <div class="pill" id="livePill"><span class="dot"></span><span id="liveText">Connecting to Squeekchain…</span></div>
+  </header>
+
+  <div class="card">
+    <div class="wheel-row">
+      <div class="wheel" id="wheel">
+        <div class="spoke s1"></div><div class="spoke s2"></div><div class="spoke s3"></div><div class="spoke s4"></div>
+        <div class="hub">🐹</div>
+      </div>
+      <div class="readout">
+        <div class="rpm"><span id="rpmVal">—</span> <small>RPM</small></div>
+        <div class="status-line" id="statusLine">Waiting for the wheel…</div>
+        <div class="status-line">Distance: <span id="distVal">—</span> · Block <span id="blockVal">—</span></div>
+      </div>
+    </div>
+
+    <div class="gauge"><div class="zone" id="zone"></div><div class="needle" id="needle" style="left:0%"></div></div>
+    <div class="gauge-labels"><span>0 RPM</span><span>75</span><span>150 RPM</span></div>
+
+    <p class="target">🎯 Target zone: <b id="targetText">—</b></p>
+
+    <div class="stats">
+      <div class="stat"><div class="v" id="scoreVal">0</div><div class="k">Score</div></div>
+      <div class="stat"><div class="v" id="streakVal">0</div><div class="k">Streak</div></div>
+      <div class="stat"><div class="v" id="levelVal">1</div><div class="k">Level</div></div>
+      <div class="stat"><div class="v" id="triesVal">10</div><div class="k">Tries left</div></div>
+    </div>
+
+    <div class="round-bar"><div class="round-fill" id="roundFill"></div></div>
+    <button class="catch-btn" id="catchBtn">🖐️ CATCH!</button>
+    <p class="msg" id="msg">Watch the wheel, then catch him in the zone.</p>
+    <div class="demo" id="demoNote">Demo mode: the live Squeekchain API is unreachable right now, so the wheel is simulated. Your score still counts locally.</div>
+  </div>
+
+  <div class="card">
+    <h2>How to play</h2>
+    <ol>
+      <li>The wheel speed is live from Squeekchain — it moves when Squeektoshi runs and stops when he naps.</li>
+      <li>Press CATCH while the golden needle is inside the green target zone.</li>
+      <li>Hits near the middle of the zone score more. Streaks add bonus points. Each round gives you 10 tries in 90 seconds.</li>
+      <li>Every 150 points you level up and the target zone gets narrower.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>🏆 Local leaderboard</h2>
+    <ul class="board" id="board"><li><span>No scores yet — be the first.</span><span></span></li></ul>
+  </div>
+
+  <footer>
+    Built for Squeekchain. Live wheel data: <a href="https://api.squeekchain.com/v1/status" target="_blank" rel="noopener">api.squeekchain.com/v1/status</a> · <a href="https://squeekchain.com/genesis/code" target="_blank" rel="noopener">squeekchain.com/genesis/code</a><br>
+    A fan-made game. Not affiliated with the Squeekchain team.
+  </footer>
+</div>
+
+<script>
+(function () {
+  var API = 'https://api.squeekchain.com/v1/status';
+  var MAX_RPM = 150, ROUND_SECONDS = 90, TRIES_PER_ROUND = 10;
+  var rpm = 0, displayRpm = 0, demoMode = false, failCount = 0;
+  var score = 0, streak = 0, best = 0, round = 1, triesLeft = TRIES_PER_ROUND, roundLeft = ROUND_SECONDS;
+  var target = { min: 0, max: 40 };
+  var $ = function (id) { return document.getElementById(id); };
+
+  function level() { return Math.floor(score / 150) + 1; }
+  function zoneWidth() { return Math.max(12, 40 - (level() - 1) * 3); }
+  function newTarget() {
+    var w = zoneWidth();
+    var nap = rpm < 5 && Math.random() < 0.7;
+    var center = nap ? w / 2 : (Math.random() < 0.25 ? w / 2 : w / 2 + Math.random() * (MAX_RPM - w));
+    target.min = Math.max(0, Math.round(center - w / 2));
+    target.max = Math.min(MAX_RPM, target.min + w);
+    $('targetText').textContent = target.min + ' – ' + target.max + ' RPM (Level ' + level() + ')';
+    renderZone();
+  }
+  function renderZone() {
+    var z = $('zone');
+    z.style.left = (target.min / MAX_RPM * 100) + '%';
+    z.style.width = ((target.max - target.min) / MAX_RPM * 100) + '%';
+  }
+  function renderStats() {
+    $('scoreVal').textContent = score;
+    $('streakVal').textContent = streak;
+    $('levelVal').textContent = level();
+    $('triesVal').textContent = triesLeft;
+    $('roundFill').style.width = (roundLeft / ROUND_SECONDS * 100) + '%';
+  }
+  function setMsg(text, cls) {
+    var m = $('msg');
+    m.textContent = text;
+    m.className = 'msg' + (cls ? ' ' + cls : '');
+  }
+  function loadBoard() {
+    var list = [];
+    try { list = JSON.parse(localStorage.getItem('zoomies-board') || '[]'); } catch (e) { list = []; }
+    var b = $('board');
+    if (!list.length) { b.innerHTML = '<li><span>No scores yet — be the first.</span><span></span></li>'; return; }
+    b.innerHTML = list.slice(0, 5).map(function (s, i) {
+      return '<li><span>#' + (i + 1) + ' · ' + s.score + ' pts · Level ' + s.level + '</span><span>' + s.date + '</span></li>';
+    }).join('');
+  }
+  function saveScore() {
+    var list = [];
+    try { list = JSON.parse(localStorage.getItem('zoomies-board') || '[]'); } catch (e) { list = []; }
+    list.push({ score: score, level: level(), date: new Date().toLocaleDateString() });
+    list.sort(function (a, b) { return b.score - a.score; });
+    try { localStorage.setItem('zoomies-board', JSON.stringify(list.slice(0, 5))); } catch (e) {}
+    loadBoard();
+  }
+  function endRound(reason) {
+    if (score > 0) saveScore();
+    round++;
+    triesLeft = TRIES_PER_ROUND;
+    roundLeft = ROUND_SECONDS;
+    setMsg(reason + ' Round ' + round + ' — new target zone!', '');
+    newTarget();
+    renderStats();
+  }
+  $('catchBtn').addEventListener('click', function () {
+    if (triesLeft <= 0) return;
+    triesLeft--;
+    var r = displayRpm;
+    if (r >= target.min && r <= target.max) {
+      var center = (target.min + target.max) / 2;
+      var centrality = 1 - Math.abs(r - center) / Math.max(1, (target.max - target.min) / 2);
+      var pts = 10 + Math.round(20 * centrality) + streak * 2 + (r >= 80 ? 15 : 0);
+      score += pts;
+      streak++;
+      if (streak > best) best = streak;
+      setMsg('🎉 HIT! +' + pts + ' pts at ' + r.toFixed(1) + ' RPM. Streak: ' + streak + (r >= 80 ? ' — ZOOMIES bonus!' : ''), 'good');
+    } else {
+      streak = 0;
+      setMsg('💨 Miss — ' + r.toFixed(1) + ' RPM is outside ' + target.min + '–' + target.max + '. Streak reset.', 'bad');
+    }
+    renderStats();
+    if (triesLeft <= 0) endRound('Out of tries.');
+  });
+
+  function tick() {
+    roundLeft--;
+    if (roundLeft <= 0) endRound("Time's up.");
+    renderStats();
+  }
+  setInterval(tick, 1000);
+
+  function renderLive() {
+    displayRpm += (rpm - displayRpm) * 0.35;
+    $('rpmVal').textContent = displayRpm.toFixed(1);
+    $('needle').style.left = Math.min(100, displayRpm / MAX_RPM * 100) + '%';
+    var wheel = $('wheel');
+    if (displayRpm > 0.5) {
+      wheel.classList.add('spinning');
+      wheel.style.animationDuration = Math.max(0.35, 60 / displayRpm * 1.5) + 's';
+    } else {
+      wheel.classList.remove('spinning');
+    }
+  }
+  setInterval(renderLive, 200);
+
+  function simRpm() {
+    var t = Date.now() / 1000;
+    return Math.max(0, 55 + 50 * Math.sin(t / 9) + 18 * Math.sin(t / 3.7));
+  }
+  function fetchStatus() {
+    if (demoMode) { rpm = simRpm(); return; }
+    fetch(API)
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        failCount = 0;
+        var m = data.measurement || {};
+        rpm = (m.rpmMilli || 0) / 1000;
+        var running = m.coreStatus && m.coreStatus !== 'IDLE';
+        $('liveText').textContent = running ? 'LIVE — Squeektoshi is running!' : 'LIVE — Squeektoshi is napping 💤';
+        $('livePill').classList.toggle('sleep', !running);
+        $('statusLine').textContent = running ? 'He is on the wheel right now.' : 'He is off the wheel. Nap catches still count!';
+        $('distVal').textContent = ((m.distanceMm || 0) / 1000).toFixed(1) + ' m';
+        var anchor = (data.builder && data.builder.anchor) || {};
+        $('blockVal').textContent = anchor.blockHeight || '—';
+        $('demoNote').style.display = 'none';
+      })
+      .catch(function () {
+        failCount++;
+        if (failCount >= 3) {
+          demoMode = true;
+          $('liveText').textContent = 'Demo mode — live API unreachable';
+          $('livePill').classList.add('sleep');
+          $('statusLine').textContent = 'Simulated wheel while the live API is down.';
+          $('demoNote').style.display = 'block';
+          rpm = simRpm();
+        }
+      });
+  }
+  fetchStatus();
+  setInterval(fetchStatus, 5000);
+  newTarget();
+  renderStats();
+  loadBoard();
+})();
+</script>
+</body>
+</html>
