@@ -53,6 +53,7 @@
   h2 { font-size:1.05rem; margin-bottom:8px; }
   ol { margin-left:18px; color:var(--muted); line-height:1.6; font-size:.95rem; }
   .board { list-style:none; }
+  .best-line { color:var(--muted); font-size:.85rem; margin-bottom:6px; }
   .board li { display:flex; justify-content:space-between; padding:7px 2px; border-bottom:1px solid #2e2410; font-size:.95rem; }
   .board li:last-child { border-bottom:none; }
   footer { text-align:center; color:var(--muted); font-size:.8rem; margin-top:18px; line-height:1.6; }
@@ -106,11 +107,13 @@
       <li>Press CATCH while the golden needle is inside the green target zone.</li>
       <li>Hits near the middle of the zone score more. Streaks add bonus points. Each round gives you 10 tries in 90 seconds.</li>
       <li>Every 150 points you level up and the target zone gets narrower.</li>
+      <li>Tip: press the Space bar (or Enter) to CATCH — no mouse needed.</li>
     </ol>
   </div>
 
   <div class="card">
     <h2>🏆 Local leaderboard</h2>
+    <p class="best-line" id="bestLine">No scores yet — be the first.</p>
     <ul class="board" id="board"><li><span>No scores yet — be the first.</span><span></span></li></ul>
   </div>
 
@@ -160,6 +163,12 @@
   function loadBoard() {
     var list = [];
     try { list = JSON.parse(localStorage.getItem('zoomies-board') || '[]'); } catch (e) { list = []; }
+    var bestLine = $('bestLine');
+    if (bestLine) {
+      bestLine.textContent = list.length
+        ? 'Best: ' + list[0].score + ' pts · Level ' + list[0].level + ' (' + list[0].date + ')'
+        : 'No scores yet — be the first.';
+    }
     var b = $('board');
     if (!list.length) { b.innerHTML = '<li><span>No scores yet — be the first.</span><span></span></li>'; return; }
     b.innerHTML = list.slice(0, 5).map(function (s, i) {
@@ -183,7 +192,7 @@
     newTarget();
     renderStats();
   }
-  $('catchBtn').addEventListener('click', function () {
+  function doCatch() {
     if (triesLeft <= 0) return;
     triesLeft--;
     var r = displayRpm;
@@ -201,6 +210,17 @@
     }
     renderStats();
     if (triesLeft <= 0) endRound('Out of tries.');
+  }
+
+  $('catchBtn').addEventListener('click', doCatch);
+
+  // Keyboard support: Space or Enter triggers CATCH (ignored on repeat).
+  document.addEventListener('keydown', function (e) {
+    if (e.repeat) return;
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      doCatch();
+    }
   });
 
   function tick() {
