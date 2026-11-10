@@ -1,6 +1,17 @@
 # Catch the Zoomies
 
+[![Play Live](https://img.shields.io/badge/Play-Live_Demo-brightgreen)](https://catch-the-zoomies-riansap1.vercel.app/)
+[![Powered by Squeekchain](https://img.shields.io/badge/Powered_by-Squeekchain-f5a623)](https://squeekchain.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/Riansap88/catch-the-zoomies)](https://github.com/Riansap88/catch-the-zoomies/commits/main)
+
 A timing game powered by Squeekchain. Squeektoshi runs his wheel live — press CATCH when his speed lands inside the target zone.
+
+## Play
+
+Live demo: https://catch-the-zoomies-riansap1.vercel.app/
+
+No install needed. Open the link and play in the browser, or open `index.html` locally.
 
 ## How it works
 
@@ -8,6 +19,8 @@ A timing game powered by Squeekchain. Squeektoshi runs his wheel live — press 
 - Each round shows a target RPM zone. Press CATCH while the live RPM is inside the zone to score.
 - Hits near the middle of the zone score more. Streaks add bonus points. 10 tries per round, 90 seconds per round.
 - Every 150 points you level up and the target zone gets narrower.
+- Tip: press the Space bar (or Enter) to CATCH, no mouse needed.
+- Your best score is shown under the local leaderboard.
 - If the live API is unreachable, the game falls back to a clearly labelled simulated wheel so it stays playable.
 - Scores are kept in a local leaderboard in the browser.
 
