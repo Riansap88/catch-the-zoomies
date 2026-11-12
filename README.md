@@ -17,7 +17,8 @@ No install needed. Open the link and play in the browser, or open `index.html` l
 
 - Live wheel speed comes from Squeekchain's public status API (`https://api.squeekchain.com/v1/status`, `measurement.rpmMilli`).
 - Each round shows a target RPM zone. Press CATCH while the live RPM is inside the zone to score.
-- Hits near the middle of the zone score more. Streaks add bonus points. 10 tries per round, 90 seconds per round.
+- Hits near the middle of the zone score more. Streaks add bonus points. Tries and round time depend on difficulty: Easy (12 tries, 90 seconds), Normal (10 tries, 90 seconds), Hard (8 tries, 75 seconds).
+- Three difficulty modes: Easy (50 RPM zone), Normal (40 RPM zone), Hard (30 RPM zone). Switch with the buttons or keys 1 / 2 / 3; your choice is saved in the browser and switching starts a fresh round.
 - Every 150 points you level up and the target zone gets narrower.
 - Tip: press the Space bar (or Enter) to CATCH, no mouse needed.
 - Your best score is shown under the local leaderboard.

@@ -49,6 +49,11 @@
   .btn-row .catch-btn { margin-top:0; flex:1; }
   .pause-btn { padding:18px 16px; font-size:1.1rem; font-weight:700; color:var(--ink); background:#2e2410; border:1px solid #4a3a18; border-radius:14px; cursor:pointer; }
   .pause-btn:hover { background:#3a2d15; }
+  .diff-row { display:flex; gap:8px; margin-top:14px; }
+  .diff-btn { flex:1; padding:10px 6px; font-size:.95rem; font-weight:700; color:var(--muted); background:#100c05; border:1px solid #3a2d15; border-radius:10px; cursor:pointer; }
+  .diff-btn:hover { border-color:var(--amber); color:var(--ink); }
+  .diff-btn.active { color:#241a05; background:linear-gradient(180deg,var(--gold),var(--amber)); border-color:var(--amber); }
+  .diff-label { color:var(--muted); font-size:.85rem; margin-top:14px; text-align:center; }
   body.paused .wheel { animation-play-state:paused; }
   body.paused .round-fill { background:var(--muted); }
   .msg { text-align:center; min-height:1.5em; margin-top:12px; font-size:1.05rem; }
@@ -93,6 +98,13 @@
 
     <p class="target">🎯 Target zone: <b id="targetText">—</b></p>
 
+    <p class="diff-label">Difficulty — switching starts a fresh round</p>
+    <div class="diff-row" role="group" aria-label="Difficulty">
+      <button class="diff-btn" type="button" data-diff="easy">😌 Easy</button>
+      <button class="diff-btn" type="button" data-diff="normal">🎯 Normal</button>
+      <button class="diff-btn" type="button" data-diff="hard">🔥 Hard</button>
+    </div>
+
     <div class="stats">
       <div class="stat"><div class="v" id="scoreVal">0</div><div class="k">Score</div></div>
       <div class="stat"><div class="v" id="streakVal">0</div><div class="k">Streak</div></div>
@@ -114,10 +126,11 @@
     <ol>
       <li>The wheel speed is live from Squeekchain — it moves when Squeektoshi runs and stops when he naps.</li>
       <li>Press CATCH while the golden needle is inside the green target zone.</li>
-      <li>Hits near the middle of the zone score more. Streaks add bonus points. Each round gives you 10 tries in 90 seconds.</li>
+      <li>Hits near the middle of the zone score more. Streaks add bonus points. Each round gives you a limited number of tries before the timer runs out.</li>
       <li>Every 150 points you level up and the target zone gets narrower.</li>
       <li>Tip: press the Space bar (or Enter) to CATCH — no mouse needed.</li>
       <li>Need a break? Press P or the Pause button to freeze the round timer and CATCH — press it again to resume.</li>
+      <li>Pick a difficulty: Easy (wide 50 RPM zone, 12 tries, 90 seconds), Normal (40 RPM zone, 10 tries, 90 seconds), or Hard (narrow 30 RPM zone, 8 tries, 75 seconds). Press 1, 2, or 3 to switch — it starts a fresh round and your choice is remembered.</li>
     </ol>
   </div>
 
@@ -136,14 +149,38 @@
 <script>
 (function () {
   var API = 'https://api.squeekchain.com/v1/status';
-  var MAX_RPM = 150, ROUND_SECONDS = 90, TRIES_PER_ROUND = 10;
+  var MAX_RPM = 150;
+  var DIFFICULTIES = {
+    easy:   { label: 'Easy',   zone: 50, tries: 12, seconds: 90 },
+    normal: { label: 'Normal', zone: 40, tries: 10, seconds: 90 },
+    hard:   { label: 'Hard',   zone: 30, tries: 8,  seconds: 75 }
+  };
+  var difficulty = 'normal';
+  try { difficulty = localStorage.getItem('zoomies-difficulty') || 'normal'; } catch (e) { difficulty = 'normal'; }
+  if (!DIFFICULTIES[difficulty]) difficulty = 'normal';
+  var ROUND_SECONDS = DIFFICULTIES[difficulty].seconds, TRIES_PER_ROUND = DIFFICULTIES[difficulty].tries;
   var rpm = 0, displayRpm = 0, demoMode = false, failCount = 0, paused = false;
   var score = 0, streak = 0, best = 0, round = 1, triesLeft = TRIES_PER_ROUND, roundLeft = ROUND_SECONDS;
   var target = { min: 0, max: 40 };
   var $ = function (id) { return document.getElementById(id); };
 
   function level() { return Math.floor(score / 150) + 1; }
-  function zoneWidth() { return Math.max(12, 40 - (level() - 1) * 3); }
+  function zoneWidth() { return Math.max(12, DIFFICULTIES[difficulty].zone - (level() - 1) * 3); }
+  function setDifficulty(name) {
+    if (!DIFFICULTIES[name]) return;
+    difficulty = name;
+    ROUND_SECONDS = DIFFICULTIES[name].seconds;
+    TRIES_PER_ROUND = DIFFICULTIES[name].tries;
+    try { localStorage.setItem('zoomies-difficulty', name); } catch (e) {}
+    document.querySelectorAll('.diff-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.diff === name);
+    });
+    triesLeft = TRIES_PER_ROUND;
+    roundLeft = ROUND_SECONDS;
+    newTarget();
+    renderStats();
+    setMsg('Difficulty: ' + DIFFICULTIES[name].label + ' — ' + DIFFICULTIES[name].zone + ' RPM zone, ' + TRIES_PER_ROUND + ' tries, ' + ROUND_SECONDS + 's per round. Fresh round!', '');
+  }
   function newTarget() {
     var w = zoneWidth();
     var nap = rpm < 5 && Math.random() < 0.7;
@@ -232,12 +269,21 @@
 
   $('catchBtn').addEventListener('click', doCatch);
   $('pauseBtn').addEventListener('click', togglePause);
+  document.querySelectorAll('.diff-btn').forEach(function (b) {
+    b.addEventListener('click', function () { setDifficulty(b.dataset.diff); });
+  });
+  document.querySelectorAll('.diff-btn').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.diff === difficulty);
+  });
 
   // Keyboard support: Space or Enter triggers CATCH (ignored on repeat).
-  // P toggles pause.
+  // P toggles pause. 1 / 2 / 3 switch difficulty.
   document.addEventListener('keydown', function (e) {
     if (e.repeat) return;
     if (e.code === 'KeyP') { togglePause(); return; }
+    if (e.code === 'Digit1') { setDifficulty('easy'); return; }
+    if (e.code === 'Digit2') { setDifficulty('normal'); return; }
+    if (e.code === 'Digit3') { setDifficulty('hard'); return; }
     if (e.code === 'Space' || e.code === 'Enter') {
       e.preventDefault();
       doCatch();
