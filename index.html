@@ -49,6 +49,9 @@
   .btn-row .catch-btn { margin-top:0; flex:1; }
   .pause-btn { padding:18px 16px; font-size:1.1rem; font-weight:700; color:var(--ink); background:#2e2410; border:1px solid #4a3a18; border-radius:14px; cursor:pointer; }
   .pause-btn:hover { background:#3a2d15; }
+  .sound-btn { padding:18px 14px; font-size:1.1rem; font-weight:700; color:var(--ink); background:#2e2410; border:1px solid #4a3a18; border-radius:14px; cursor:pointer; }
+  .sound-btn:hover { background:#3a2d15; }
+  .sound-btn.off { opacity:.6; }
   .diff-row { display:flex; gap:8px; margin-top:14px; }
   .diff-btn { flex:1; padding:10px 6px; font-size:.95rem; font-weight:700; color:var(--muted); background:#100c05; border:1px solid #3a2d15; border-radius:10px; cursor:pointer; }
   .diff-btn:hover { border-color:var(--amber); color:var(--ink); }
@@ -115,6 +118,7 @@
     <div class="round-bar"><div class="round-fill" id="roundFill"></div></div>
     <div class="btn-row">
       <button class="catch-btn" id="catchBtn">🖐️ CATCH!</button>
+      <button class="sound-btn" id="soundBtn" type="button" aria-label="Toggle sound effects">🔊 Sound</button>
       <button class="pause-btn" id="pauseBtn" type="button" aria-label="Pause the round timer">⏸ Pause</button>
     </div>
     <p class="msg" id="msg">Watch the wheel, then catch him in the zone.</p>
@@ -130,6 +134,7 @@
       <li>Every 150 points you level up and the target zone gets narrower.</li>
       <li>Tip: press the Space bar (or Enter) to CATCH — no mouse needed.</li>
       <li>Need a break? Press P or the Pause button to freeze the round timer and CATCH — press it again to resume.</li>
+      <li>Sound effects are on by default: a chime for hits, a low buzz for misses, and a little jingle when you level up. Press M or the Sound button to mute — your choice is remembered.</li>
       <li>Pick a difficulty: Easy (wide 50 RPM zone, 12 tries, 90 seconds), Normal (40 RPM zone, 10 tries, 90 seconds), or Hard (narrow 30 RPM zone, 8 tries, 75 seconds). Press 1, 2, or 3 to switch — it starts a fresh round and your choice is remembered.</li>
     </ol>
   </div>
@@ -164,6 +169,49 @@
   var target = { min: 0, max: 40 };
   var $ = function (id) { return document.getElementById(id); };
 
+  // Sound effects, synthesized with the Web Audio API (no audio files).
+  var soundOn = true;
+  try { soundOn = localStorage.getItem('zoomies-sound') !== 'off'; } catch (e) { soundOn = true; }
+  var audioCtx = null;
+  function playTone(freq, dur, type, vol, delay) {
+    if (!soundOn) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var t0 = audioCtx.currentTime + (delay || 0);
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol || 0.12, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.05);
+    } catch (e) { /* audio unavailable: stay silent */ }
+  }
+  function sfx(name) {
+    if (name === 'hit') { playTone(660, 0.12, 'sine', 0.14); playTone(990, 0.18, 'sine', 0.12, 0.09); }
+    else if (name === 'miss') { playTone(160, 0.22, 'sawtooth', 0.07); }
+    else if (name === 'levelup') { [523, 659, 784, 1047].forEach(function (f, i) { playTone(f, 0.16, 'triangle', 0.12, i * 0.09); }); }
+    else if (name === 'round') { playTone(392, 0.14, 'triangle', 0.1); playTone(523, 0.2, 'triangle', 0.1, 0.12); }
+    else if (name === 'click') { playTone(440, 0.06, 'sine', 0.08); }
+  }
+  function renderSoundBtn() {
+    var b = $('soundBtn');
+    if (!b) return;
+    b.textContent = soundOn ? '🔊 Sound' : '🔇 Muted';
+    b.classList.toggle('off', !soundOn);
+  }
+  function toggleSound() {
+    soundOn = !soundOn;
+    try { localStorage.setItem('zoomies-sound', soundOn ? 'on' : 'off'); } catch (e) {}
+    renderSoundBtn();
+    if (soundOn) sfx('click');
+  }
+
   function level() { return Math.floor(score / 150) + 1; }
   function zoneWidth() { return Math.max(12, DIFFICULTIES[difficulty].zone - (level() - 1) * 3); }
   function setDifficulty(name) {
@@ -179,6 +227,7 @@
     roundLeft = ROUND_SECONDS;
     newTarget();
     renderStats();
+    sfx('click');
     setMsg('Difficulty: ' + DIFFICULTIES[name].label + ' — ' + DIFFICULTIES[name].zone + ' RPM zone, ' + TRIES_PER_ROUND + ' tries, ' + ROUND_SECONDS + 's per round. Fresh round!', '');
   }
   function newTarget() {
@@ -232,6 +281,7 @@
   }
   function endRound(reason) {
     if (score > 0) saveScore();
+    sfx('round');
     round++;
     triesLeft = TRIES_PER_ROUND;
     roundLeft = ROUND_SECONDS;
@@ -241,6 +291,7 @@
   }
   function togglePause() {
     paused = !paused;
+    sfx('click');
     document.body.classList.toggle('paused', paused);
     $('pauseBtn').textContent = paused ? '▶ Resume' : '⏸ Pause';
     $('catchBtn').disabled = paused;
@@ -255,12 +306,15 @@
       var center = (target.min + target.max) / 2;
       var centrality = 1 - Math.abs(r - center) / Math.max(1, (target.max - target.min) / 2);
       var pts = 10 + Math.round(20 * centrality) + streak * 2 + (r >= 80 ? 15 : 0);
+      var prevLevel = level();
       score += pts;
       streak++;
       if (streak > best) best = streak;
+      sfx(level() > prevLevel ? 'levelup' : 'hit');
       setMsg('🎉 HIT! +' + pts + ' pts at ' + r.toFixed(1) + ' RPM. Streak: ' + streak + (r >= 80 ? ' — ZOOMIES bonus!' : ''), 'good');
     } else {
       streak = 0;
+      sfx('miss');
       setMsg('💨 Miss — ' + r.toFixed(1) + ' RPM is outside ' + target.min + '–' + target.max + '. Streak reset.', 'bad');
     }
     renderStats();
@@ -269,6 +323,8 @@
 
   $('catchBtn').addEventListener('click', doCatch);
   $('pauseBtn').addEventListener('click', togglePause);
+  $('soundBtn').addEventListener('click', toggleSound);
+  renderSoundBtn();
   document.querySelectorAll('.diff-btn').forEach(function (b) {
     b.addEventListener('click', function () { setDifficulty(b.dataset.diff); });
   });
@@ -277,10 +333,11 @@
   });
 
   // Keyboard support: Space or Enter triggers CATCH (ignored on repeat).
-  // P toggles pause. 1 / 2 / 3 switch difficulty.
+  // P toggles pause. M toggles sound. 1 / 2 / 3 switch difficulty.
   document.addEventListener('keydown', function (e) {
     if (e.repeat) return;
     if (e.code === 'KeyP') { togglePause(); return; }
+    if (e.code === 'KeyM') { toggleSound(); return; }
     if (e.code === 'Digit1') { setDifficulty('easy'); return; }
     if (e.code === 'Digit2') { setDifficulty('normal'); return; }
     if (e.code === 'Digit3') { setDifficulty('hard'); return; }
