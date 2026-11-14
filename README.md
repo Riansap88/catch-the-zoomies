@@ -20,6 +20,7 @@ No install needed. Open the link and play in the browser, or open `index.html` l
 - Hits near the middle of the zone score more. Streaks add bonus points. Tries and round time depend on difficulty: Easy (12 tries, 90 seconds), Normal (10 tries, 90 seconds), Hard (8 tries, 75 seconds).
 - Three difficulty modes: Easy (50 RPM zone), Normal (40 RPM zone), Hard (30 RPM zone). Switch with the buttons or keys 1 / 2 / 3; your choice is saved in the browser and switching starts a fresh round.
 - Sound effects, synthesized in the browser with the Web Audio API (no audio files): a chime for hits, a low buzz for misses, a jingle on level-up, and clicks for pause and round changes. Mute with the Sound button or the M key; your choice is saved in the browser.
+- Share your best score: the Share button under the local leaderboard (or the S key) opens the device share sheet, or copies a ready-to-post score line to the clipboard when sharing is not available. The button stays disabled until a score is on the board.
 - Every 150 points you level up and the target zone gets narrower.
 - Tip: press the Space bar (or Enter) to CATCH, no mouse needed.
 - Your best score is shown under the local leaderboard.
