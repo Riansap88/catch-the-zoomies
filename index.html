@@ -70,6 +70,12 @@
   .best-line { color:var(--muted); font-size:.85rem; margin-bottom:6px; }
   .board li { display:flex; justify-content:space-between; padding:7px 2px; border-bottom:1px solid #2e2410; font-size:.95rem; }
   .board li:last-child { border-bottom:none; }
+  .share-row { display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+  .share-btn { padding:10px 14px; font-size:.95rem; font-weight:700; color:var(--ink); background:#2e2410; border:1px solid #4a3a18; border-radius:10px; cursor:pointer; }
+  .share-btn:hover { background:#3a2d15; }
+  .share-btn:disabled { opacity:.45; cursor:default; }
+  .share-msg { color:var(--muted); font-size:.85rem; }
+  .share-msg.good { color:var(--green); }
   footer { text-align:center; color:var(--muted); font-size:.8rem; margin-top:18px; line-height:1.6; }
   footer a { color:var(--gold); }
   .demo { display:none; margin-top:10px; padding:8px 10px; border:1px dashed var(--amber); border-radius:8px; color:var(--gold); font-size:.85rem; text-align:center; }
@@ -136,6 +142,7 @@
       <li>Need a break? Press P or the Pause button to freeze the round timer and CATCH — press it again to resume.</li>
       <li>Sound effects are on by default: a chime for hits, a low buzz for misses, and a little jingle when you level up. Press M or the Sound button to mute — your choice is remembered.</li>
       <li>Pick a difficulty: Easy (wide 50 RPM zone, 12 tries, 90 seconds), Normal (40 RPM zone, 10 tries, 90 seconds), or Hard (narrow 30 RPM zone, 8 tries, 75 seconds). Press 1, 2, or 3 to switch — it starts a fresh round and your choice is remembered.</li>
+      <li>Got a score on the board? Press S or the Share button under the leaderboard to share your best score — it opens your device share sheet, or copies a ready-to-post score line when sharing is not available.</li>
     </ol>
   </div>
 
@@ -143,6 +150,10 @@
     <h2>🏆 Local leaderboard</h2>
     <p class="best-line" id="bestLine">No scores yet — be the first.</p>
     <ul class="board" id="board"><li><span>No scores yet — be the first.</span><span></span></li></ul>
+    <div class="share-row">
+      <button class="share-btn" id="shareBtn" type="button">📣 Share best score</button>
+      <span class="share-msg" id="shareMsg"></span>
+    </div>
   </div>
 
   <footer>
@@ -266,10 +277,11 @@
         : 'No scores yet — be the first.';
     }
     var b = $('board');
-    if (!list.length) { b.innerHTML = '<li><span>No scores yet — be the first.</span><span></span></li>'; return; }
+    if (!list.length) { b.innerHTML = '<li><span>No scores yet — be the first.</span><span></span></li>'; renderShareBtn(); return; }
     b.innerHTML = list.slice(0, 5).map(function (s, i) {
       return '<li><span>#' + (i + 1) + ' · ' + s.score + ' pts · Level ' + s.level + '</span><span>' + s.date + '</span></li>';
     }).join('');
+    renderShareBtn();
   }
   function saveScore() {
     var list = [];
@@ -278,6 +290,47 @@
     list.sort(function (a, b) { return b.score - a.score; });
     try { localStorage.setItem('zoomies-board', JSON.stringify(list.slice(0, 5))); } catch (e) {}
     loadBoard();
+  }
+  // Share the best score: device share sheet when available, clipboard otherwise.
+  function bestEntry() {
+    var list = [];
+    try { list = JSON.parse(localStorage.getItem('zoomies-board') || '[]'); } catch (e) { list = []; }
+    return list.length ? list[0] : null;
+  }
+  function shareText(entry) {
+    return 'I scored ' + entry.score + ' pts (Level ' + entry.level + ') in Catch the Zoomies, a Squeekchain timing game! Play: https://catch-the-zoomies-riansap1.vercel.app/';
+  }
+  function renderShareBtn() {
+    var b = $('shareBtn');
+    if (!b) return;
+    b.disabled = !bestEntry();
+  }
+  function fallbackCopy(text, done, fail) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      done('Copied to clipboard — paste it anywhere!');
+    } catch (e) { fail('Copy failed — select the text manually.'); }
+  }
+  function shareScore() {
+    var entry = bestEntry();
+    if (!entry) return;
+    var text = shareText(entry);
+    var msg = $('shareMsg');
+    function done(note) { if (msg) { msg.textContent = note; msg.className = 'share-msg good'; } }
+    function fail(note) { if (msg) { msg.textContent = note; msg.className = 'share-msg'; } }
+    if (navigator.share) {
+      navigator.share({ title: 'Catch the Zoomies', text: text }).then(function () { done('Shared!'); }, function () { /* dismissed: stay silent */ });
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done('Copied to clipboard — paste it anywhere!'); }, function () { fallbackCopy(text, done, fail); });
+    } else {
+      fallbackCopy(text, done, fail);
+    }
   }
   function endRound(reason) {
     if (score > 0) saveScore();
@@ -324,6 +377,7 @@
   $('catchBtn').addEventListener('click', doCatch);
   $('pauseBtn').addEventListener('click', togglePause);
   $('soundBtn').addEventListener('click', toggleSound);
+  $('shareBtn').addEventListener('click', shareScore);
   renderSoundBtn();
   document.querySelectorAll('.diff-btn').forEach(function (b) {
     b.addEventListener('click', function () { setDifficulty(b.dataset.diff); });
@@ -333,11 +387,12 @@
   });
 
   // Keyboard support: Space or Enter triggers CATCH (ignored on repeat).
-  // P toggles pause. M toggles sound. 1 / 2 / 3 switch difficulty.
+  // P toggles pause. M toggles sound. S shares the best score. 1 / 2 / 3 switch difficulty.
   document.addEventListener('keydown', function (e) {
     if (e.repeat) return;
     if (e.code === 'KeyP') { togglePause(); return; }
     if (e.code === 'KeyM') { toggleSound(); return; }
+    if (e.code === 'KeyS') { shareScore(); return; }
     if (e.code === 'Digit1') { setDifficulty('easy'); return; }
     if (e.code === 'Digit2') { setDifficulty('normal'); return; }
     if (e.code === 'Digit3') { setDifficulty('hard'); return; }
