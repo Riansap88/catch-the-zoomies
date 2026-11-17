@@ -165,6 +165,7 @@
       <li>Pick a difficulty: Easy (wide 50 RPM zone, 12 tries, 90 seconds), Normal (40 RPM zone, 10 tries, 90 seconds), or Hard (narrow 30 RPM zone, 8 tries, 75 seconds). Press 1, 2, or 3 to switch — it starts a fresh round and your choice is remembered.</li>
       <li>Got a score on the board? Press S or the Share button under the leaderboard to share your best score — it opens your device share sheet, or copies a ready-to-post score line when sharing is not available.</li>
       <li>Round history: every finished round is saved below the leaderboard — points earned, hits and misses, difficulty and level. Use Clear history to wipe it.</li>
+      <li>Personal bests are tracked: your best streak is saved in the browser and shown under the leaderboard, and beating your best score earns a NEW BEST shout-out at the end of the round.</li>
     </ol>
   </div>
 
@@ -204,7 +205,10 @@
   if (!DIFFICULTIES[difficulty]) difficulty = 'normal';
   var ROUND_SECONDS = DIFFICULTIES[difficulty].seconds, TRIES_PER_ROUND = DIFFICULTIES[difficulty].tries;
   var rpm = 0, displayRpm = 0, demoMode = false, failCount = 0, paused = false;
-  var score = 0, streak = 0, best = 0, round = 1, triesLeft = TRIES_PER_ROUND, roundLeft = ROUND_SECONDS;
+  var score = 0, streak = 0, round = 1, triesLeft = TRIES_PER_ROUND, roundLeft = ROUND_SECONDS;
+  // Best streak is personal: it survives reloads, unlike the round score.
+  var best = 0;
+  try { best = parseInt(localStorage.getItem('zoomies-best-streak'), 10) || 0; } catch (e) { best = 0; }
   var roundHits = 0, roundMisses = 0, roundStartScore = 0;
   var target = { min: 0, max: 40 };
   var $ = function (id) { return document.getElementById(id); };
@@ -301,10 +305,11 @@
     var list = [];
     try { list = JSON.parse(localStorage.getItem('zoomies-board') || '[]'); } catch (e) { list = []; }
     var bestLine = $('bestLine');
+    var bestStreak = best > 0 ? ' · Best streak: ' + best : '';
     if (bestLine) {
       bestLine.textContent = list.length
-        ? 'Best: ' + list[0].score + ' pts · Level ' + list[0].level + ' (' + list[0].date + ')'
-        : 'No scores yet — be the first.';
+        ? 'Best: ' + list[0].score + ' pts · Level ' + list[0].level + ' (' + list[0].date + ')' + bestStreak
+        : 'No scores yet — be the first.' + (best > 0 ? ' Best streak so far: ' + best + '.' : '');
     }
     var b = $('board');
     if (!list.length) { b.innerHTML = '<li><span>No scores yet — be the first.</span><span></span></li>'; renderShareBtn(); return; }
@@ -316,10 +321,13 @@
   function saveScore() {
     var list = [];
     try { list = JSON.parse(localStorage.getItem('zoomies-board') || '[]'); } catch (e) { list = []; }
+    var prevBest = list.length ? list[0].score : 0;
     list.push({ score: score, level: level(), date: new Date().toLocaleDateString() });
     list.sort(function (a, b) { return b.score - a.score; });
     try { localStorage.setItem('zoomies-board', JSON.stringify(list.slice(0, 5))); } catch (e) {}
     loadBoard();
+    // A first-ever score is not a "new best": there was nothing to beat.
+    return score > prevBest && prevBest > 0;
   }
   // Round history: the last 8 finished rounds, kept in localStorage.
   function loadHistory() {
@@ -391,13 +399,14 @@
     }
   }
   function endRound(reason) {
-    if (score > 0) saveScore();
+    var newBest = false;
+    if (score > 0) newBest = saveScore();
     recordRound();
     sfx('round');
     round++;
     triesLeft = TRIES_PER_ROUND;
     roundLeft = ROUND_SECONDS;
-    setMsg(reason + ' Round ' + round + ' — new target zone!', '');
+    setMsg(reason + (newBest ? ' 🏆 NEW BEST SCORE!' : '') + ' Round ' + round + ' — new target zone!', newBest ? 'good' : '');
     newTarget();
     renderStats();
   }
@@ -422,7 +431,10 @@
       score += pts;
       streak++;
       roundHits++;
-      if (streak > best) best = streak;
+      if (streak > best) {
+        best = streak;
+        try { localStorage.setItem('zoomies-best-streak', String(best)); } catch (e) {}
+      }
       sfx(level() > prevLevel ? 'levelup' : 'hit');
       setMsg('🎉 HIT! +' + pts + ' pts at ' + r.toFixed(1) + ' RPM. Streak: ' + streak + (r >= 80 ? ' — ZOOMIES bonus!' : ''), 'good');
     } else {
