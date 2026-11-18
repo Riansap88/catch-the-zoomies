@@ -38,7 +38,7 @@
   .gauge-labels { display:flex; justify-content:space-between; color:var(--muted); font-size:.75rem; margin-top:4px; }
   .target { margin-top:12px; font-size:1.05rem; }
   .target b { color:var(--green); }
-  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px; }
+  .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:14px; }
   .stat { background:#100c05; border:1px solid #3a2d15; border-radius:10px; padding:10px 6px; text-align:center; }
   .stat .v { font-size:1.3rem; font-weight:700; }
   .stat .k { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
@@ -140,6 +140,7 @@
       <div class="stat"><div class="v" id="streakVal">0</div><div class="k">Streak</div></div>
       <div class="stat"><div class="v" id="levelVal">1</div><div class="k">Level</div></div>
       <div class="stat"><div class="v" id="triesVal">10</div><div class="k">Tries left</div></div>
+      <div class="stat"><div class="v" id="accVal">—</div><div class="k">Accuracy</div></div>
     </div>
 
     <div class="round-bar"><div class="round-fill" id="roundFill"></div></div>
@@ -166,6 +167,7 @@
       <li>Got a score on the board? Press S or the Share button under the leaderboard to share your best score — it opens your device share sheet, or copies a ready-to-post score line when sharing is not available.</li>
       <li>Round history: every finished round is saved below the leaderboard — points earned, hits and misses, difficulty and level. Use Clear history to wipe it.</li>
       <li>Personal bests are tracked: your best streak is saved in the browser and shown under the leaderboard, and beating your best score earns a NEW BEST shout-out at the end of the round.</li>
+      <li>Accuracy is tracked for this session: hits vs misses, shown as a percentage next to the other stats and in the round-end message.</li>
     </ol>
   </div>
 
@@ -210,6 +212,13 @@
   var best = 0;
   try { best = parseInt(localStorage.getItem('zoomies-best-streak'), 10) || 0; } catch (e) { best = 0; }
   var roundHits = 0, roundMisses = 0, roundStartScore = 0;
+  // Session accuracy: hits vs misses since the page loaded.
+  var sessHits = 0, sessMisses = 0;
+  function accuracyText() {
+    var total = sessHits + sessMisses;
+    if (!total) return null;
+    return Math.round(sessHits / total * 100) + '% (' + sessHits + ' hit' + (sessHits === 1 ? '' : 's') + ' / ' + sessMisses + ' miss' + (sessMisses === 1 ? '' : 'es') + ')';
+  }
   var target = { min: 0, max: 40 };
   var $ = function (id) { return document.getElementById(id); };
 
@@ -294,6 +303,8 @@
     $('streakVal').textContent = streak;
     $('levelVal').textContent = level();
     $('triesVal').textContent = triesLeft;
+    var acc = accuracyText();
+    $('accVal').textContent = acc ? acc.split(' ')[0] : '—';
     $('roundFill').style.width = (roundLeft / ROUND_SECONDS * 100) + '%';
   }
   function setMsg(text, cls) {
@@ -406,7 +417,8 @@
     round++;
     triesLeft = TRIES_PER_ROUND;
     roundLeft = ROUND_SECONDS;
-    setMsg(reason + (newBest ? ' 🏆 NEW BEST SCORE!' : '') + ' Round ' + round + ' — new target zone!', newBest ? 'good' : '');
+    var accNote = accuracyText();
+    setMsg(reason + (newBest ? ' 🏆 NEW BEST SCORE!' : '') + (accNote ? ' Session accuracy: ' + accNote + '.' : '') + ' Round ' + round + ' — new target zone!', newBest ? 'good' : '');
     newTarget();
     renderStats();
   }
@@ -431,6 +443,7 @@
       score += pts;
       streak++;
       roundHits++;
+      sessHits++;
       if (streak > best) {
         best = streak;
         try { localStorage.setItem('zoomies-best-streak', String(best)); } catch (e) {}
@@ -440,6 +453,7 @@
     } else {
       streak = 0;
       roundMisses++;
+      sessMisses++;
       sfx('miss');
       setMsg('💨 Miss — ' + r.toFixed(1) + ' RPM is outside ' + target.min + '–' + target.max + '. Streak reset.', 'bad');
     }
