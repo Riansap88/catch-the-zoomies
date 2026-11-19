@@ -168,6 +168,7 @@
       <li>Round history: every finished round is saved below the leaderboard — points earned, hits and misses, difficulty and level. Use Clear history to wipe it.</li>
       <li>Personal bests are tracked: your best streak is saved in the browser and shown under the leaderboard, and beating your best score earns a NEW BEST shout-out at the end of the round.</li>
       <li>Accuracy is tracked for this session: hits vs misses, shown as a percentage next to the other stats and in the round-end message.</li>
+      <li>Leaderboard scores are tagged with the difficulty they were earned on, so an Easy 120 and a Hard 60 are not compared as if they were the same game.</li>
     </ol>
   </div>
 
@@ -319,13 +320,13 @@
     var bestStreak = best > 0 ? ' · Best streak: ' + best : '';
     if (bestLine) {
       bestLine.textContent = list.length
-        ? 'Best: ' + list[0].score + ' pts · Level ' + list[0].level + ' (' + list[0].date + ')' + bestStreak
+        ? 'Best: ' + list[0].score + ' pts · Level ' + list[0].level + (list[0].difficulty ? ' · ' + list[0].difficulty : '') + ' (' + list[0].date + ')' + bestStreak
         : 'No scores yet — be the first.' + (best > 0 ? ' Best streak so far: ' + best + '.' : '');
     }
     var b = $('board');
     if (!list.length) { b.innerHTML = '<li><span>No scores yet — be the first.</span><span></span></li>'; renderShareBtn(); return; }
     b.innerHTML = list.slice(0, 5).map(function (s, i) {
-      return '<li><span>#' + (i + 1) + ' · ' + s.score + ' pts · Level ' + s.level + '</span><span>' + s.date + '</span></li>';
+      return '<li><span>#' + (i + 1) + ' · ' + s.score + ' pts · Level ' + s.level + (s.difficulty ? ' · ' + s.difficulty : '') + '</span><span>' + s.date + '</span></li>';
     }).join('');
     renderShareBtn();
   }
@@ -333,7 +334,7 @@
     var list = [];
     try { list = JSON.parse(localStorage.getItem('zoomies-board') || '[]'); } catch (e) { list = []; }
     var prevBest = list.length ? list[0].score : 0;
-    list.push({ score: score, level: level(), date: new Date().toLocaleDateString() });
+    list.push({ score: score, level: level(), difficulty: DIFFICULTIES[difficulty].label, date: new Date().toLocaleDateString() });
     list.sort(function (a, b) { return b.score - a.score; });
     try { localStorage.setItem('zoomies-board', JSON.stringify(list.slice(0, 5))); } catch (e) {}
     loadBoard();
@@ -375,7 +376,7 @@
     return list.length ? list[0] : null;
   }
   function shareText(entry) {
-    return 'I scored ' + entry.score + ' pts (Level ' + entry.level + ') in Catch the Zoomies, a Squeekchain timing game! Play: https://catch-the-zoomies-riansap1.vercel.app/';
+    return 'I scored ' + entry.score + ' pts (Level ' + entry.level + (entry.difficulty ? ', ' + entry.difficulty : '') + ') in Catch the Zoomies, a Squeekchain timing game! Play: https://catch-the-zoomies-riansap1.vercel.app/';
   }
   function renderShareBtn() {
     var b = $('shareBtn');

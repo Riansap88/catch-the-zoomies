@@ -24,6 +24,7 @@ No install needed. Open the link and play in the browser, or open `index.html` l
 - Your best score is shown under the local leaderboard.
 - Your best streak is saved in the browser and shown under the leaderboard; beating your best score earns a NEW BEST shout-out at the end of the round.
 - Session accuracy (hits vs misses) is shown as a percentage in the stats row and repeated in the round-end message.
+- Leaderboard scores are tagged with the difficulty they were earned on (Easy / Normal / Hard), so scores from different difficulties are not compared as if they were the same game; the shared score line includes the difficulty too.
 - If the live API is unreachable, the game falls back to a clearly labelled simulated wheel so it stays playable.
 - Scores are kept in a local leaderboard in the browser.
 - Mobile-friendly layout: on narrow screens the wheel stacks above the readout, stats use two columns, and CATCH stretches full width for easy thumb taps.
