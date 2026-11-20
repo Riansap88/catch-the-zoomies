@@ -65,6 +65,7 @@
   .round-bar { height:8px; background:#100c05; border-radius:4px; overflow:hidden; margin-top:12px; }
   .round-fill { height:100%; background:var(--amber); width:100%; transition:width 1s linear; }
   h2 { font-size:1.05rem; margin-bottom:8px; }
+  .sub-head { font-size:.95rem; margin-top:14px; }
   ol { margin-left:18px; color:var(--muted); line-height:1.6; font-size:.95rem; }
   .board { list-style:none; }
   .best-line { color:var(--muted); font-size:.85rem; margin-bottom:6px; }
@@ -169,6 +170,7 @@
       <li>Personal bests are tracked: your best streak is saved in the browser and shown under the leaderboard, and beating your best score earns a NEW BEST shout-out at the end of the round.</li>
       <li>Accuracy is tracked for this session: hits vs misses, shown as a percentage next to the other stats and in the round-end message.</li>
       <li>Leaderboard scores are tagged with the difficulty they were earned on, so an Easy 120 and a Hard 60 are not compared as if they were the same game.</li>
+      <li>Best per difficulty: the leaderboard also shows your best score on Easy, Normal, and Hard separately, so you can chase a new best on each mode. Scores saved before difficulty tags existed do not count toward a per-difficulty best.</li>
     </ol>
   </div>
 
@@ -176,6 +178,8 @@
     <h2>🏆 Local leaderboard</h2>
     <p class="best-line" id="bestLine">No scores yet — be the first.</p>
     <ul class="board" id="board"><li><span>No scores yet — be the first.</span><span></span></li></ul>
+    <h2 class="sub-head">Best per difficulty</h2>
+    <ul class="board" id="diffBest"><li><span>No tagged scores yet.</span><span></span></li></ul>
     <div class="share-row">
       <button class="share-btn" id="shareBtn" type="button">📣 Share best score</button>
       <span class="share-msg" id="shareMsg"></span>
@@ -313,6 +317,22 @@
     m.textContent = text;
     m.className = 'msg' + (cls ? ' ' + cls : '');
   }
+  // Best score per difficulty: only scores saved with a difficulty tag count,
+  // so untagged scores from before difficulty tags are never misattributed.
+  function renderDiffBest(list) {
+    var el = $('diffBest');
+    if (!el) return;
+    var bests = {};
+    list.forEach(function (s) {
+      if (!s.difficulty) return;
+      if (!bests[s.difficulty] || s.score > bests[s.difficulty].score) bests[s.difficulty] = s;
+    });
+    el.innerHTML = ['Easy', 'Normal', 'Hard'].map(function (d) {
+      var icon = d === 'Easy' ? '😌' : d === 'Hard' ? '🔥' : '🎯';
+      var b = bests[d];
+      return '<li><span>' + icon + ' ' + d + '</span><span>' + (b ? b.score + ' pts · Level ' + b.level + ' (' + b.date + ')' : 'No score yet') + '</span></li>';
+    }).join('');
+  }
   function loadBoard() {
     var list = [];
     try { list = JSON.parse(localStorage.getItem('zoomies-board') || '[]'); } catch (e) { list = []; }
@@ -324,10 +344,11 @@
         : 'No scores yet — be the first.' + (best > 0 ? ' Best streak so far: ' + best + '.' : '');
     }
     var b = $('board');
-    if (!list.length) { b.innerHTML = '<li><span>No scores yet — be the first.</span><span></span></li>'; renderShareBtn(); return; }
+    if (!list.length) { b.innerHTML = '<li><span>No scores yet — be the first.</span><span></span></li>'; renderDiffBest(list); renderShareBtn(); return; }
     b.innerHTML = list.slice(0, 5).map(function (s, i) {
       return '<li><span>#' + (i + 1) + ' · ' + s.score + ' pts · Level ' + s.level + (s.difficulty ? ' · ' + s.difficulty : '') + '</span><span>' + s.date + '</span></li>';
     }).join('');
+    renderDiffBest(list);
     renderShareBtn();
   }
   function saveScore() {
