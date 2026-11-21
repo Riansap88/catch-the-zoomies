@@ -36,6 +36,9 @@
   .zone { position:absolute; top:0; bottom:0; background:rgba(123,216,138,.35); border-left:2px solid var(--green); border-right:2px solid var(--green); }
   .needle { position:absolute; top:-2px; bottom:-2px; width:4px; background:var(--gold); border-radius:2px; transform:translateX(-50%); transition:left .3s ease; }
   .gauge-labels { display:flex; justify-content:space-between; color:var(--muted); font-size:.75rem; margin-top:4px; }
+  .spark { display:flex; gap:10px; align-items:center; margin-top:10px; }
+  .spark svg { flex:1; height:36px; min-width:0; background:#100c05; border:1px solid #3a2d15; border-radius:8px; }
+  .spark-label { color:var(--muted); font-size:.85rem; white-space:nowrap; }
   .target { margin-top:12px; font-size:1.05rem; }
   .target b { color:var(--green); }
   .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:14px; }
@@ -126,6 +129,13 @@
 
     <div class="gauge"><div class="zone" id="zone"></div><div class="needle" id="needle" style="left:0%"></div></div>
     <div class="gauge-labels"><span>0 RPM</span><span>75</span><span>150 RPM</span></div>
+    <div class="spark">
+      <svg id="sparkSvg" viewBox="0 0 120 36" preserveAspectRatio="none" role="img" aria-label="Recent wheel speed trend">
+        <line id="sparkTarget" x1="0" x2="120" y1="18" y2="18" stroke="#7bd88a" stroke-width="1" stroke-dasharray="3 3" />
+        <polyline id="sparkLine" fill="none" stroke="#ffd166" stroke-width="2" points="" />
+      </svg>
+      <span class="spark-label" id="trendLabel">Trend: collecting…</span>
+    </div>
 
     <p class="target">🎯 Target zone: <b id="targetText">—</b></p>
 
@@ -171,6 +181,7 @@
       <li>Accuracy is tracked for this session: hits vs misses, shown as a percentage next to the other stats and in the round-end message.</li>
       <li>Leaderboard scores are tagged with the difficulty they were earned on, so an Easy 120 and a Hard 60 are not compared as if they were the same game.</li>
       <li>Best per difficulty: the leaderboard also shows your best score on Easy, Normal, and Hard separately, so you can chase a new best on each mode. Scores saved before difficulty tags existed do not count toward a per-difficulty best.</li>
+      <li>RPM trend: the sparkline under the gauge shows the last few seconds of wheel speed, with a dashed line at the middle of your target zone — watch whether it is rising, falling, or steady toward the zone before you press CATCH.</li>
     </ol>
   </div>
 
@@ -302,6 +313,34 @@
     var z = $('zone');
     z.style.left = (target.min / MAX_RPM * 100) + '%';
     z.style.width = ((target.max - target.min) / MAX_RPM * 100) + '%';
+  }
+  // RPM trend sparkline: the last 40 displayed RPM samples, redrawn each frame.
+  // The dashed line marks the middle of the target zone, so you can see whether
+  // the wheel is heading toward it before you press CATCH.
+  var SPARK_N = 40;
+  var sparkSamples = [];
+  function renderSpark() {
+    var line = $('sparkLine');
+    var label = $('trendLabel');
+    var targetLine = $('sparkTarget');
+    if (!line) return;
+    var w = 120, h = 36, pad = 2;
+    var pts = sparkSamples.map(function (v, i) {
+      var x = sparkSamples.length > 1 ? pad + i / (SPARK_N - 1) * (w - pad * 2) : w / 2;
+      var y = h - pad - Math.min(1, v / MAX_RPM) * (h - pad * 2);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    line.setAttribute('points', pts);
+    if (targetLine) {
+      var center = (target.min + target.max) / 2;
+      var cy = (h - pad - Math.min(1, center / MAX_RPM) * (h - pad * 2)).toFixed(1);
+      targetLine.setAttribute('y1', cy);
+      targetLine.setAttribute('y2', cy);
+    }
+    if (!label) return;
+    if (sparkSamples.length < 6) { label.textContent = 'Trend: collecting…'; return; }
+    var delta = sparkSamples[sparkSamples.length - 1] - sparkSamples[0];
+    label.textContent = delta > 4 ? 'Trend: ▲ rising' : delta < -4 ? 'Trend: ▼ falling' : 'Trend: — steady';
   }
   function renderStats() {
     $('scoreVal').textContent = score;
@@ -522,6 +561,9 @@
 
   function renderLive() {
     displayRpm += (rpm - displayRpm) * 0.35;
+    sparkSamples.push(displayRpm);
+    if (sparkSamples.length > SPARK_N) sparkSamples.shift();
+    renderSpark();
     $('rpmVal').textContent = displayRpm.toFixed(1);
     $('needle').style.left = Math.min(100, displayRpm / MAX_RPM * 100) + '%';
     var wheel = $('wheel');
